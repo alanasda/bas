@@ -96,7 +96,7 @@ def liberar_acesso(modulo_id):
                 <h2>🔥 Salve, Visionário!</h2>
                 <p>Parabéns pelo primeiro passo rumo à sua evolução digital com a <strong>Cyber.Digital</strong>.</p>
                 <p>O módulo <strong>{modulo_id}</strong> já está disponível para você acessar.</p>
-                <p style="margin-top:20px;">➡️ Acesse agora mesmo: <br><strong>https://seudominio.com/login</strong></p>
+                <p style="margin-top:20px;">➡️ Acesse agora mesmo: <br><strong>https://cyberflux.onrender.com</strong></p>
                 <p style="margin-top:30px;font-style:italic;">Qualquer dúvida, chame a equipe no <strong>@cyberdigital</strong>. Estamos aqui pra você! 🚀</p>
             </div>
         </body>
