@@ -166,7 +166,12 @@ def listar_modulos():
 # === ROTA DE PING PARA UPTIMEROBOT ===
 @app.route("/ping", methods=["GET"])
 def ping():
-    return jsonify({"status": "ok"}), 200
+    try:
+        return jsonify({"success": True, "message": "Servidor funcionando"}), 200
+    except Exception as e:
+        logger.error(f"Erro no ping: {traceback.format_exc()}")
+        return jsonify({"success": False, "message": "Erro interno no servidor."}), 500
+
 
 # === VERIFICA SMTP NO INÍCIO ===
 if __name__ == "__main__":
