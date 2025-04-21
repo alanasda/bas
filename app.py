@@ -102,7 +102,7 @@ def login():
 def liberar_acesso(modulo_id):
     try:
         data = request.get_json()
-        email = data.get("email")
+        email = data.get("contactEmail") or data.get("customer", {}).get("email")
 
         if not email or "@" not in email:
             return jsonify({"success": False, "message": "Email inválido"}), 400
