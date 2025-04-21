@@ -17,7 +17,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 # === Supabase ===
 SUPABASE_URL = "https://szbptsuvjmaqkcgsgagx.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6YnB0c3V2am1hcWtjZ3NnYWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxNjA3MjEsImV4cCI6MjA1OTczNjcyMX0.wqjSCJ8evNog5AnP2dzk1t2nkn31EfvqDuaAkXDiqNo"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # === E-mail ===
