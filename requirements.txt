@@ -1,4 +1,7 @@
-flask
-flask-cors
-yagmail
-supabase
+Flask==2.3.3
+Flask-Cors==4.0.0
+yagmail==0.15.293
+argon2-cffi==23.1.0
+python-socketio==5.11.2
+python-dotenv==1.0.1
+supabase==1.0.3
