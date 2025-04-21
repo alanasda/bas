@@ -40,16 +40,30 @@ def register():
     try:
         data = request.get_json()
         required_fields = ["nome", "email", "senha"]
-        
+
         if not all(field in data for field in required_fields):
             return jsonify({"success": False, "message": "Campos obrigatórios faltando"}), 400
 
         # Verificar se o usuário já existe
-        user_exists = supabase.table("usuarios").select("email").eq("email", data["email"]).execute()
+        user_exists = supabase.table("usuarios").select("email", "senha").eq("email", data["email"]).execute()
+        
         if user_exists.data:
-            return jsonify({"success": False, "message": "Email já cadastrado"}), 409
+            # Se o usuário já existe, o sistema irá verificar se a senha está vazia ou não
+            if not data.get("senha"):
+                # Se a senha não for informada, o usuário precisa redefinir a senha
+                return jsonify({"success": False, "message": "Email já cadastrado. Redefina sua senha."}), 409
+            else:
+                # Caso a senha seja informada, é para realizar a redefinição
+                usuario = user_exists.data[0]
+                # Verificar se a senha fornecida é diferente da que já está armazenada
+                if ph.verify(usuario["senha"], data["senha"]):
+                    return jsonify({"success": False, "message": "Senha igual à existente. Redefina com uma nova senha."}), 409
 
-        # Criar novo usuário
+                # Atualizar a senha do usuário com a nova fornecida
+                supabase.table("usuarios").update({"senha": ph.hash(data["senha"])}).eq("email", data["email"]).execute()
+                return jsonify({"success": True, "message": "Senha redefinida com sucesso"}), 200
+
+        # Criar novo usuário caso não exista
         novo_usuario = {
             "nome": data["nome"],
             "email": data["email"],
@@ -64,39 +78,6 @@ def register():
     except Exception as e:
         logger.error(f"Erro no registro: {traceback.format_exc()}")
         return jsonify({"success": False, "message": "Erro interno no servidor"}), 500
-
-@app.route("/login", methods=["POST"])
-def login():
-    try:
-        data = request.get_json()
-        if "email" not in data or "senha" not in data:
-            return jsonify({"success": False, "message": "Credenciais necessárias"}), 400
-
-        # Buscar usuário
-        result = supabase.table("usuarios").select("*").eq("email", data["email"]).execute()
-        if not result.data:
-            return jsonify({"success": False, "message": "Credenciais inválidas"}), 401
-
-        usuario = result.data[0]
-
-        # Verificar senha
-        try:
-            ph.verify(usuario["senha"], data["senha"])
-        except argon2_exceptions.VerifyMismatchError:
-            return jsonify({"success": False, "message": "Credenciais inválidas"}), 401
-
-        return jsonify({
-            "success": True,
-            "usuario": {
-                "email": usuario["email"],
-                "nome": usuario["nome"],
-                "modulos": usuario["modulos"]
-            }
-        }), 200
-
-    except Exception as e:
-        logger.error(f"Erro no login: {traceback.format_exc()}")
-        return jsonify({"success": False, "message": "Erro de autenticação"}), 500
 
 @app.route("/webhook/<int:modulo_id>", methods=["POST"])
 def liberar_acesso(modulo_id):
