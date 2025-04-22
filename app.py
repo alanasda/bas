@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from supabase import create_client, Client
 from flask_cors import CORS
 import yagmail
@@ -30,34 +30,38 @@ EMAIL_CONFIG = {
 
 ph = PasswordHasher()
 
-# === ROTA DE REGISTRO COM SUPORTE A CONTA PRÉ-CRIADA PELO WEBHOOK ===
+def resposta_json(data, status=200):
+    resp = make_response(jsonify(data), status)
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    return resp
+
+# === ROTA DE REGISTRO ===
 @app.route("/register", methods=["POST"])
 def register():
     try:
-        data = request.get_json()
+        data = request.get_json(force=True)
         email = data.get("email")
         senha = data.get("senha")
 
         if not email or not senha:
-            return jsonify({"error": "Email e senha são obrigatórios"}), 400
+            return resposta_json({"error": "Email e senha são obrigatórios"}, 400)
 
         result = supabase.table("usuarios").select("*").eq("email", email).execute()
 
         if result.data:
             usuario = result.data[0]
 
-            # Se usuário já existe, mas foi criado pelo webhook → permitir atualizar senha
             if usuario["pagamento_confirmado"]:
                 senha_hash = ph.hash(senha)
                 supabase.table("usuarios").update({
                     "senha": senha_hash,
                     "nome": "Usuário Atualizado"
                 }).eq("email", email).execute()
-                return jsonify({"message": "Senha atualizada com sucesso."}), 200
+                return resposta_json({"message": "Senha atualizada com sucesso."})
             else:
-                return jsonify({"error": "E-mail já registrado."}), 400
+                return resposta_json({"error": "E-mail já registrado."}, 400)
 
-        # Novo usuário
         senha_hash = ph.hash(senha)
         insert = supabase.table("usuarios").insert({
             "email": email,
@@ -68,42 +72,33 @@ def register():
         }).execute()
 
         if insert.data:
-            return jsonify({"message": "Cadastro realizado com sucesso."}), 201
+            return resposta_json({"message": "Cadastro realizado com sucesso."}, 201)
         else:
-            return jsonify({"error": "Erro ao cadastrar usuário."}), 500
+            return resposta_json({"error": "Erro ao cadastrar usuário."}, 500)
 
     except Exception:
         logger.error(f"Erro no registro: {traceback.format_exc()}")
-        return jsonify({"error": "Erro interno no servidor."}), 500
+        return resposta_json({"error": "Erro interno no servidor."}, 500)
 
-# === ROTA DE WEBHOOK PARA LIBERAR MÓDULO ===
+# === WEBHOOK DE LIBERAÇÃO DE MÓDULO ===
 @app.route("/webhook/<int:modulo_id>", methods=["POST"])
 def liberar_acesso(modulo_id):
     try:
-        data = request.get_json()
+        data = request.get_json(force=True)
         email = data.get("contactEmail") or data.get("customer", {}).get("email")
 
         if not email or "@" not in email:
-            return jsonify({"success": False, "message": "Email inválido"}), 400
+            return resposta_json({"success": False, "message": "Email inválido"}, 400)
 
-        # Corpo do e-mail estilizado
         corpo_email = f"""
-        <!DOCTYPE html>
-        <html lang="pt-br">
-        <head><meta charset="UTF-8"><title>Acesso Liberado</title></head>
-        <body style="font-family:sans-serif;padding:20px;background:#fff;">
-            <div style="max-width:600px;margin:auto;border-radius:10px;background:linear-gradient(45deg,#FFA500,#FFD700);color:#000;padding:20px;">
-                <h2>🔥 Salve, Visionário!</h2>
-                <p>Parabéns pelo primeiro passo rumo à sua evolução digital com a <strong>Cyber.Digital</strong>.</p>
-                <p>O módulo <strong>{modulo_id}</strong> já está disponível para você acessar.</p>
-                <p style="margin-top:20px;">➡️ Acesse agora mesmo: <br><strong>https://cyberflux.onrender.com</strong></p>
-                <p style="margin-top:30px;font-style:italic;">Qualquer dúvida, chame a equipe no <strong>@cyberdigital</strong>. Estamos aqui pra você! 🚀</p>
-            </div>
-        </body>
-        </html>
+        <html><body style="font-family:sans-serif;">
+        <div style="background:linear-gradient(45deg,#FFA500,#FFD700);padding:20px;border-radius:10px;">
+        <h2>🔥 Salve, Visionário!</h2>
+        <p>O módulo <strong>{modulo_id}</strong> foi liberado para você.</p>
+        <a href='https://cyberflux.onrender.com'>Acessar plataforma</a>
+        </div></body></html>
         """
 
-        # Enviar o e-mail
         yag = yagmail.SMTP(
             user=EMAIL_CONFIG["remetente"],
             password=EMAIL_CONFIG["senha"],
@@ -113,7 +108,6 @@ def liberar_acesso(modulo_id):
         )
         yag.send(to=email, subject="🎉 Acesso Liberado - Cyber.Digital", contents=corpo_email)
 
-        # Buscar ou criar usuário
         usuario = supabase.table("usuarios").select("*").eq("email", email).execute().data
 
         if usuario:
@@ -134,46 +128,45 @@ def liberar_acesso(modulo_id):
                 "pagamento_confirmado": True
             }).execute()
 
-        return jsonify({"success": True, "message": "Acesso liberado com sucesso!"}), 200
+        return resposta_json({"success": True, "message": "Acesso liberado com sucesso!"})
 
     except yagmail.YagAddressError:
-        return jsonify({"success": False, "message": "Endereço de e-mail inválido"}), 400
+        return resposta_json({"success": False, "message": "Endereço de e-mail inválido"}, 400)
     except Exception:
         logger.error(f"Erro no webhook: {traceback.format_exc()}")
-        return jsonify({"success": False, "message": "Erro interno no servidor."}), 500
+        return resposta_json({"success": False, "message": "Erro interno no servidor."}, 500)
 
-# === ROTA PARA CONSULTAR MÓDULOS DO USUÁRIO ===
+# === ROTA PARA LISTAR MÓDULOS ===
 @app.route("/modulos", methods=["POST"])
 def listar_modulos():
     try:
-        data = request.get_json()
+        data = request.get_json(force=True)
         email = data.get("email")
 
         if not email:
-            return jsonify({"success": False, "message": "Email necessário"}), 400
+            return resposta_json({"success": False, "message": "Email necessário"}, 400)
 
         resultado = supabase.table("usuarios").select("modulos").eq("email", email).execute()
 
         if not resultado.data:
-            return jsonify({"success": False, "message": "Usuário não encontrado"}), 404
+            return resposta_json({"success": False, "message": "Usuário não encontrado"}, 404)
 
-        return jsonify({"success": True, "modulos": resultado.data[0]["modulos"]}), 200
+        return resposta_json({"success": True, "modulos": resultado.data[0]["modulos"]})
 
     except Exception:
         logger.error(f"Erro ao listar módulos: {traceback.format_exc()}")
-        return jsonify({"success": False, "message": "Erro ao buscar módulos"}), 500
+        return resposta_json({"success": False, "message": "Erro ao buscar módulos"}, 500)
 
-# === ROTA DE PING PARA UPTIMEROBOT ===
+# === ROTA DE PING ===
 @app.route("/ping", methods=["GET"])
 def ping():
     try:
-        return jsonify({"success": True, "message": "Servidor funcionando"}), 200
-    except Exception as e:
+        return resposta_json({"success": True, "message": "Servidor funcionando"})
+    except Exception:
         logger.error(f"Erro no ping: {traceback.format_exc()}")
-        return jsonify({"success": False, "message": "Erro interno no servidor."}), 500
+        return resposta_json({"success": False, "message": "Erro interno no servidor."}, 500)
 
-
-# === VERIFICA SMTP NO INÍCIO ===
+# === VERIFICA SMTP ANTES DE INICIAR ===
 if __name__ == "__main__":
     try:
         socket.gethostbyname(EMAIL_CONFIG["smtp_server"])
@@ -181,4 +174,4 @@ if __name__ == "__main__":
     except socket.error as e:
         logger.error(f"Erro de DNS: {str(e)}")
 
-    app.run(host="0.0.0.0", port=10000, debug=False)
+    app.run(host="0.0.0.0", port=10000)
