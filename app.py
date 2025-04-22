@@ -157,6 +157,40 @@ def listar_modulos():
         logger.error(f"Erro ao listar módulos: {traceback.format_exc()}")
         return resposta_json({"success": False, "message": "Erro ao buscar módulos"}, 500)
 
+# === ROTA DE LOGIN ===
+@app.route("/login", methods=["POST"])
+def login():
+    try:
+        data = request.get_json(force=True)
+        email = data.get("email")
+        senha = data.get("senha")
+
+        if not email or not senha:
+            return resposta_json({"error": "Email e senha obrigatórios"}, 400)
+
+        result = supabase.table("usuarios").select("*").eq("email", email).execute()
+
+        if not result.data:
+            return resposta_json({"error": "Usuário não encontrado"}, 404)
+
+        usuario = result.data[0]
+
+        try:
+            ph.verify(usuario["senha"], senha)
+        except argon2_exceptions.VerifyMismatchError:
+            return resposta_json({"error": "Senha incorreta"}, 401)
+
+        return resposta_json({
+            "success": True,
+            "message": "Login bem-sucedido",
+            "email": usuario["email"],
+            "modulos": usuario.get("modulos", [])
+        })
+
+    except Exception:
+        logger.error(f"Erro no login: {traceback.format_exc()}")
+        return resposta_json({"error": "Erro interno no servidor"}, 500)
+
 # === ROTA DE PING ===
 @app.route("/ping", methods=["GET"])
 def ping():
