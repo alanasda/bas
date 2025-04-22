@@ -61,40 +61,47 @@ def register():
                 return resposta_json({"message": "Senha atualizada com sucesso."})
             else:
                 return resposta_json({"error": "E-mail já registrado."}, 400)
-
-        senha_hash = ph.hash(senha)
-        insert = supabase.table("usuarios").insert({
-            "email": email,
-            "senha": senha_hash,
-            "nome": "Novo Usuário",
-            "modulos": [],
-            "pagamento_confirmado": False
-        }).execute()
-
-        if insert.data:
-            return resposta_json({"message": "Cadastro realizado com sucesso."}, 201)
         else:
-            return resposta_json({"error": "Erro ao cadastrar usuário."}, 500)
+            senha_hash = ph.hash(senha)
+            insert = supabase.table("usuarios").insert({
+                "email": email,
+                "senha": senha_hash,
+                "nome": "Novo Usuário",
+                "modulos": [],
+                "pagamento_confirmado": False
+            }).execute()
+
+            if insert.data:
+                return resposta_json({"message": "Cadastro realizado com sucesso."}, 201)
+            else:
+                return resposta_json({"error": "Erro ao cadastrar usuário."}, 500)
 
     except Exception:
         logger.error(f"Erro no registro: {traceback.format_exc()}")
         return resposta_json({"error": "Erro interno no servidor."}, 500)
 
-# === WEBHOOK DE LIBERAÇÃO DE MÓDULO ===
-@app.route("/webhook/<int:modulo_id>", methods=["POST"])
-def liberar_acesso(modulo_id):
+# === WEBHOOK DE LIBERAÇÃO DE MÓDULO(S) ===
+@app.route("/webhook", methods=["POST"])
+def liberar_acesso():
     try:
         data = request.get_json(force=True)
         email = data.get("contactEmail") or data.get("customer", {}).get("email")
+        modulos_ids = data.get("modulos")  # Espera-se uma lista de IDs de módulos
 
         if not email or "@" not in email:
             return resposta_json({"success": False, "message": "Email inválido"}, 400)
+
+        if not isinstance(modulos_ids, list) or not all(isinstance(m, int) for m in modulos_ids):
+            return resposta_json({"success": False, "message": "Lista de módulos inválida"}, 400)
 
         corpo_email = f"""
         <html><body style="font-family:sans-serif;">
         <div style="background:linear-gradient(45deg,#FFA500,#FFD700);padding:20px;border-radius:10px;">
         <h2>🔥 Salve, Visionário!</h2>
-        <p>O módulo <strong>{modulo_id}</strong> foi liberado para você.</p>
+        <p>Os seguintes módulos foram liberados para você:</p>
+        <ul>
+            {''.join(f'<li><strong>{modulo_id}</strong></li>' for modulo_id in modulos_ids)}
+        </ul>
         <a href='https://cyberflux.onrender.com'>Acessar plataforma</a>
         </div></body></html>
         """
@@ -108,11 +115,13 @@ def liberar_acesso(modulo_id):
         )
         yag.send(to=email, subject="🎉 Acesso Liberado - Cyber.Digital", contents=corpo_email)
 
-        usuario = supabase.table("usuarios").select("*").eq("email", email).execute().data
+        usuario_result = supabase.table("usuarios").select("*").eq("email", email).execute()
+        usuario_data = usuario_result.data
 
-        if usuario:
-            modulos_atuais = usuario[0].get("modulos", [])
-            novos_modulos = list(set(modulos_atuais + [modulo_id]))
+        if usuario_data:
+            usuario = usuario_data[0]
+            modulos_atuais = usuario.get("modulos", [])
+            novos_modulos = list(set(modulos_atuais + modulos_ids))
             supabase.table("usuarios").update({
                 "modulos": novos_modulos,
                 "pagamento_confirmado": True
@@ -124,7 +133,7 @@ def liberar_acesso(modulo_id):
                 "email": email,
                 "nome": "Usuário Webhook",
                 "senha": senha_hash,
-                "modulos": [modulo_id],
+                "modulos": modulos_ids,
                 "pagamento_confirmado": True
             }).execute()
 
