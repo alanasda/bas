@@ -51,7 +51,6 @@ def register():
 
         if result.data:
             usuario = result.data[0]
-
             if usuario["pagamento_confirmado"]:
                 senha_hash = ph.hash(senha)
                 supabase.table("usuarios").update({
@@ -86,7 +85,7 @@ def liberar_acesso():
     try:
         data = request.get_json(force=True)
         email = data.get("contactEmail") or data.get("customer", {}).get("email")
-        modulos_ids = data.get("modulos")  # Espera-se uma lista de IDs de módulos
+        modulos_ids = data.get("modulos")
 
         if not email or "@" not in email:
             return resposta_json({"success": False, "message": "Email inválido"}, 400)
@@ -166,7 +165,7 @@ def listar_modulos():
         logger.error(f"Erro ao listar módulos: {traceback.format_exc()}")
         return resposta_json({"success": False, "message": "Erro ao buscar módulos"}, 500)
 
-# === ROTA DE LOGIN ===
+# === ROTA DE LOGIN CORRIGIDA ===
 @app.route("/login", methods=["POST"])
 def login():
     try:
@@ -192,8 +191,11 @@ def login():
         return resposta_json({
             "success": True,
             "message": "Login bem-sucedido",
-            "email": usuario["email"],
-            "modulos": usuario.get("modulos", [])
+            "usuario": {
+                "email": usuario["email"],
+                "modulos": usuario.get("modulos", []),
+                "nome": usuario.get("nome", "Usuário")
+            }
         })
 
     except Exception:
