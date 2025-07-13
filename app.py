@@ -5,7 +5,6 @@ import yagmail
 from argon2 import PasswordHasher, exceptions as argon2_exceptions
 import logging
 import traceback
-import socket
 import secrets
 
 # === CONFIGURAÇÕES GERAIS ===
@@ -211,12 +210,6 @@ def ping():
         logger.error(f"Erro no ping: {traceback.format_exc()}")
         return resposta_json({"success": False, "message": "Erro interno no servidor."}, 500)
 
-# === VERIFICA SMTP ANTES DE INICIAR ===
+# === INICIAR SERVIDOR ===
 if __name__ == "__main__":
-    try:
-        socket.gethostbyname(EMAIL_CONFIG["smtp_server"])
-        logger.info("Conexão SMTP verificada")
-    except socket.error as e:
-        logger.error(f"Erro de DNS: {str(e)}")
-
     app.run(host="0.0.0.0", port=10000)
